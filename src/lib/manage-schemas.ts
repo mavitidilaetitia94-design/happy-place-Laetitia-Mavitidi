@@ -19,9 +19,12 @@ export const rejectionSchema = z.object({
   }),
 });
 
+export const SUBMISSION_CATEGORIES = ["Outillage", "Formation", "RH", "Autre"] as const;
+
 export const submissionSchema = z.object({
   author_name: z.string().trim().min(2, "Nom requis").max(80, "80 caractères maximum"),
   team: z.string().trim().min(2, "Pôle requis").max(60, "60 caractères maximum"),
+  category: z.enum(SUBMISSION_CATEGORIES, { errorMap: () => ({ message: "Choisis une catégorie" }) }),
   content: z.string().trim().min(5, "5 caractères minimum").superRefine((v, ctx) => {
     if (v.length > 2000)
       ctx.addIssue({ code: "custom", message: `Ta proposition dépasse 2 000 caractères (${v.length.toLocaleString("fr-FR")} saisis). Raccourcis-la avant d'envoyer.` });

@@ -6,6 +6,7 @@ import { BrandHeader } from "@/components/brand-header";
 import { processAttachmentDeletionQueue } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/_authenticated/manage")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Gestion des données — Happy Place" },

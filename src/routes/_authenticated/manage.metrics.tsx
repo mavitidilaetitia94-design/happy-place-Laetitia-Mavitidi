@@ -26,6 +26,7 @@ import {
 } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/_authenticated/manage/metrics")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Gestion des indicateurs — Happy Place" },

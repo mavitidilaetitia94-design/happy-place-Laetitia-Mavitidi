@@ -27,6 +27,7 @@ import { NewsImage, NewsLinks, NewsMediaEditor } from "@/components/news-media";
 import { emptyMedia, linkErrors, mediaFromNews, toNewsLinks, type MediaDraft } from "@/lib/news-media";
 
 export const Route = createFileRoute("/_authenticated/manage/news")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Gestion des actualités — Happy Place" },
@@ -55,6 +56,7 @@ function ManageNews() {
   const [toDelete, setToDelete] = useState<News | null>(null);
   const [media, setMedia] = useState<MediaDraft>(emptyMedia);
   const [showLinkErrs, setShowLinkErrs] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "brouillon" | "planifiee" | "publiée">("all");
 
   const list = useQuery({ queryKey: ["news", "all"], queryFn: fetchAllNews, retry: false });
   const invalidate = () => qc.invalidateQueries({ queryKey: ["news"] });
@@ -103,11 +105,24 @@ function ManageNews() {
     save.mutate({ ...res.data, links: toNewsLinks(media.links) });
   }
 
+  const rawList = list.data ?? [];
+  const draftCount = rawList.filter((n) => n.status === "brouillon" && !n.scheduled_for).length;
+  const schedCount = rawList.filter((n) => n.status === "planifiée" || Boolean(n.scheduled_for)).length;
+  const pubCount = rawList.filter((n) => n.status === "publiée").length;
+
+  const filteredList = rawList.filter((n) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "brouillon") return n.status === "brouillon" && !n.scheduled_for;
+    if (statusFilter === "planifiee") return n.status === "planifiée" || Boolean(n.scheduled_for);
+    if (statusFilter === "publiée") return n.status === "publiée";
+    return true;
+  });
+
   return (
     <section className="space-y-md">
       <div className="flex items-center justify-between">
         <h2 className="font-headline-sm text-headline-sm text-primary">
-          Actualités ({list.data?.length ?? 0})
+          Gestion des actualités ({list.data?.length ?? 0})
         </h2>
         <button
           onClick={() => {
@@ -123,13 +138,53 @@ function ManageNews() {
         </button>
       </div>
 
+      {/* Top Menu Tabs for Admin */}
+      <div className="flex items-center gap-2 border-b border-outline-variant pb-2">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("all")}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-none transition-colors ${
+            statusFilter === "all" ? "bg-primary text-on-primary" : "bg-surface-variant text-on-surface hover:bg-outline-variant"
+          }`}
+        >
+          Toutes ({rawList.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("brouillon")}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-none transition-colors ${
+            statusFilter === "brouillon" ? "bg-primary text-on-primary" : "bg-surface-variant text-on-surface hover:bg-outline-variant"
+          }`}
+        >
+          Brouillons ({draftCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("planifiee")}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-none transition-colors ${
+            statusFilter === "planifiee" ? "bg-primary text-on-primary" : "bg-surface-variant text-on-surface hover:bg-outline-variant"
+          }`}
+        >
+          Planifiés ({schedCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("publiée")}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-none transition-colors ${
+            statusFilter === "publiée" ? "bg-primary text-on-primary" : "bg-surface-variant text-on-surface hover:bg-outline-variant"
+          }`}
+        >
+          Publiées ({pubCount})
+        </button>
+      </div>
+
       {list.isLoading && <p className="text-body-sm text-on-surface-variant">Chargement…</p>}
       {list.isError && (
         <p className="text-body-sm text-error">Impossible de charger les actualités.</p>
       )}
 
       <div className="space-y-xs">
-        {list.data?.map((n) => (
+        {filteredList.map((n) => (
           <article
             key={n.id}
             className="flex flex-col sm:flex-row items-start justify-between gap-sm p-sm min-w-0 overflow-hidden bg-card border border-outline-variant"

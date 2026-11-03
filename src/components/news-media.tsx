@@ -16,7 +16,7 @@ function I({ name, className = "" }: { name: string; className?: string }) {
 }
 
 export function NewsImage({ path, alt, className = "" }: { path: string; alt: string; className?: string }) {
-  const q = useQuery({ queryKey: ["news-image", path], queryFn: () => signedNewsImageUrl(path), staleTime: 50 * 60 * 1000, retry: false });
+  const q = useQuery({ queryKey: ["news-image", path], queryFn: () => signedNewsImageUrl(path), staleTime: 50 * 60 * 1000 });
   if (!q.data) return null;
   return <img src={q.data} alt={alt} className={`w-full max-h-60 object-cover border border-outline-variant ${className}`} />;
 }

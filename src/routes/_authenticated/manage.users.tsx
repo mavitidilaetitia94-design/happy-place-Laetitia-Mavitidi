@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { countAttachmentDeletionQueue, processAttachmentDeletionQueue } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/_authenticated/manage/users")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Utilisateurs autorisés — Happy Place" },

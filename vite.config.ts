@@ -8,9 +8,17 @@ import { nitro } from "nitro/vite";
 
 export default defineConfig({
   server: {
+    host: "0.0.0.0",
     port: 3000,
-    // Autorise l'aperçu dans GitHub Codespaces (adresses en *.app.github.dev)
-    allowedHosts: [".app.github.dev"],
+    allowedHosts: true,
+  },
+  define: {
+    "import.meta.env.VITE_SUPABASE_URL": JSON.stringify("https://zftztrmbmcpzgxwmpybv.supabase.co"),
+    "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify("sb_publishable_cScFpCwDPCBXSbtf1I1WHw_w1x_1tPn"),
+    "process.env.VITE_SUPABASE_URL": JSON.stringify("https://zftztrmbmcpzgxwmpybv.supabase.co"),
+    "process.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify("sb_publishable_cScFpCwDPCBXSbtf1I1WHw_w1x_1tPn"),
+    "process.env.SUPABASE_URL": JSON.stringify("https://zftztrmbmcpzgxwmpybv.supabase.co"),
+    "process.env.SUPABASE_PUBLISHABLE_KEY": JSON.stringify("sb_publishable_cScFpCwDPCBXSbtf1I1WHw_w1x_1tPn"),
   },
   resolve: { dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-start"] },
   plugins: [

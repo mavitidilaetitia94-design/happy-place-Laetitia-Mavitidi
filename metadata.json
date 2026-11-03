@@ -1,0 +1,5 @@
+{
+  "name": "Happy Place",
+  "description": "Happy Place - Tableau de bord et gestion pour élèves et équipes",
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

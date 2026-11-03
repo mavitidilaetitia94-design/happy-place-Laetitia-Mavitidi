@@ -44,9 +44,31 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+import { generateNewsAiSuggestion } from "./lib/news-ai";
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const url = new URL(request.url);
+      if (url.pathname === "/api/news/ai-suggest" && request.method === "POST") {
+        try {
+          const body = await request.json();
+          const result = await generateNewsAiSuggestion(body);
+          return new Response(JSON.stringify(result), {
+            status: 200,
+            headers: { "content-type": "application/json; charset=utf-8" },
+          });
+        } catch (e) {
+          return new Response(
+            JSON.stringify({ ok: false, error: (e as Error).message }),
+            {
+              status: 400,
+              headers: { "content-type": "application/json; charset=utf-8" },
+            },
+          );
+        }
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

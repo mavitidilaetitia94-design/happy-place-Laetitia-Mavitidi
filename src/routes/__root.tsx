@@ -38,6 +38,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "Happy Place" },
+      { name: "description", content: "Happy Place - Tableau de bord et gestion pour élèves et équipes" },
+      { property: "og:title", content: "Happy Place" },
+      { property: "og:description", content: "Happy Place - Tableau de bord et gestion pour élèves et équipes" },
       { name: "author", content: "Happy Place" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -69,11 +73,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Scripts />
       </body>

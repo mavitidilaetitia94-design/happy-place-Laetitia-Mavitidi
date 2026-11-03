@@ -29,22 +29,27 @@ function EntreePage() {
     let cancelled = false;
     (async () => {
       setError(null);
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        navigate({ to: "/" });
-        return;
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          navigate({ to: "/" });
+          return;
+        }
+        const { error: err } = await supabase.auth.signInAnonymously();
+        if (cancelled) return;
+        if (err) {
+          setError(
+            /anonymous/i.test(err.message) && /disabled|not enabled/i.test(err.message)
+              ? "Les connexions anonymes ne sont pas activées dans Supabase. Active « Allow anonymous sign-ins » (voir le README, étape 2), puis réessaie."
+              : `Impossible d'ouvrir Happy Place : ${err.message}`,
+          );
+          return;
+        }
+        navigate({ to: "/choisir-role" });
+      } catch (e: unknown) {
+        if (cancelled) return;
+        setError(`Impossible d'ouvrir Happy Place : ${(e as Error)?.message || String(e)}`);
       }
-      const { error: err } = await supabase.auth.signInAnonymously();
-      if (cancelled) return;
-      if (err) {
-        setError(
-          /anonymous/i.test(err.message) && /disabled|not enabled/i.test(err.message)
-            ? "Les connexions anonymes ne sont pas activées dans Supabase. Active « Allow anonymous sign-ins » (voir le README, étape 2), puis réessaie."
-            : `Impossible d'ouvrir Happy Place : ${err.message}`,
-        );
-        return;
-      }
-      navigate({ to: "/choisir-role" });
     })();
     return () => {
       cancelled = true;

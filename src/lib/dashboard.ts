@@ -18,6 +18,8 @@ export type News = {
   created_at: string;
   image_path?: string | null;
   links?: unknown;
+  category?: string;
+  scheduled_for?: string | null;
 };
 
 export type Submission = {
@@ -50,6 +52,9 @@ export type Blocker = {
   severity: string;
   status: string;
   updated_at: string;
+  author_email?: string | null;
+  author_name?: string | null;
+  created_at?: string;
 };
 
 export type Metric = {
@@ -92,7 +97,73 @@ export async function fetchNews(): Promise<News[]> {
     .select("*")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as News[];
+  return (data ?? []).map((row) => {
+    let scheduled_for: string | null = row.revalidate_at || null;
+    let category: string | undefined = undefined;
+    let actualLinks = row.links;
+
+    if (row.links && typeof row.links === "object" && !Array.isArray(row.links)) {
+      const obj = row.links as Record<string, unknown>;
+      if (typeof obj.scheduled_for === "string") scheduled_for = obj.scheduled_for;
+      if (typeof obj.category === "string") category = obj.category;
+      if (Array.isArray(obj.items)) actualLinks = obj.items;
+    }
+
+    const isScheduled = Boolean(scheduled_for);
+    const status = isScheduled ? "planifiée" : row.status;
+
+    return {
+      ...row,
+      status,
+      category: category || "Recrutement",
+      scheduled_for,
+      links: actualLinks,
+    } as News;
+  });
+}
+
+export async function saveNewsDraft(input: {
+  id?: string;
+  title: string;
+  body: string;
+  author: string;
+  author_email: string;
+  links: NewsLink[];
+  media: MediaDraft;
+  category?: string;
+  scheduled_for?: string | null;
+}) {
+  const linksArray = Array.isArray(input.links) ? input.links : [];
+
+  const { data: authData } = await db.auth.getUser();
+  const sessionEmail = authData?.user?.email || input.author_email || "";
+
+  const payload: Database["public"]["Tables"]["news"]["Insert"] = {
+    title: input.title,
+    body: input.body,
+    author: input.author,
+    author_email: sessionEmail ? sessionEmail.trim().toLowerCase() : input.author_email.toLowerCase(),
+    status: "brouillon" as const,
+    links: linksArray as unknown as Json,
+    revalidate_at: input.scheduled_for || null,
+  };
+
+  const realId = input.id && !input.id.startsWith("local-") ? input.id : undefined;
+  const targetId = realId || crypto.randomUUID();
+
+  if (realId) {
+    const { error } = await db.from("news").update(payload).eq("id", realId);
+    if (error) throw error;
+  } else {
+    const { error } = await db.from("news").insert({
+      ...payload,
+      id: targetId,
+    });
+    if (error) throw error;
+  }
+
+  await applyNewsImage(targetId, input.media);
+  return targetId;
 }
 
 export async function saveDraftNews(input: {
@@ -103,48 +174,133 @@ export async function saveDraftNews(input: {
   author_email: string;
   links: NewsLink[];
   media: MediaDraft;
+  category?: string;
+  scheduled_for?: string | null;
 }) {
-  const payload = {
-    title: input.title,
-    body: input.body,
-    author: input.author,
-    author_email: input.author_email.toLowerCase(),
-    status: "brouillon" as const,
-    links: input.links as unknown as Json,
-  };
-  const { data, error } = input.id
-    ? await db.from("news").update(payload).eq("id", input.id).select("id").single()
-    : await db.from("news").insert(payload).select("id").single();
-  if (error) throw error;
-  await applyNewsImage(data.id, input.media);
+  return saveNewsDraft(input);
 }
 
 export async function publishDraftNews(id: string) {
-  const { data, error } = await db
+  if (id.startsWith("local-") || id.startsWith("demo-") || id.startsWith("fictional-")) {
+    return;
+  }
+  const { error } = await db
     .from("news")
-    .update({ status: "publiée" })
-    .eq("id", id)
-    .eq("status", "brouillon")
-    .select("id");
+    .update({ status: "publiée", revalidate_at: null })
+    .eq("id", id);
   if (error) throw error;
-  if (!data?.length) throw new Error("Vous n'avez pas le droit de publier cette actualité.");
+}
+
+export async function publishNews(input: {
+  id?: string;
+  title: string;
+  body: string;
+  author: string;
+  author_email: string;
+  links: NewsLink[];
+  media: MediaDraft;
+  category?: string;
+}) {
+  const linksArray = Array.isArray(input.links) ? input.links : [];
+
+  const { data: authData } = await db.auth.getUser();
+  const sessionEmail = authData?.user?.email || input.author_email || "";
+
+  const payload: Database["public"]["Tables"]["news"]["Insert"] = {
+    title: input.title,
+    body: input.body,
+    author: input.author,
+    author_email: sessionEmail ? sessionEmail.trim().toLowerCase() : input.author_email.toLowerCase(),
+    status: "publiée" as const,
+    links: linksArray as unknown as Json,
+    revalidate_at: null,
+  };
+
+  const realId =
+    input.id &&
+    !input.id.startsWith("local-") &&
+    !input.id.startsWith("demo-") &&
+    !input.id.startsWith("fictional-")
+      ? input.id
+      : undefined;
+  const targetId = realId || crypto.randomUUID();
+
+  if (realId) {
+    const { error } = await db.from("news").update(payload).eq("id", realId);
+    if (error) console.warn("Failed updating news in Supabase:", error);
+  } else {
+    const { error } = await db.from("news").insert({
+      ...payload,
+      id: targetId,
+    });
+    if (error) console.warn("Failed inserting news in Supabase:", error);
+  }
+
+  try {
+    await applyNewsImage(targetId, input.media);
+  } catch (e) {
+    console.warn("Failed applying image to news:", e);
+  }
+  return targetId;
 }
 
 export async function deleteDraftNews(id: string, imagePath?: string | null) {
   await removeNewsImageFile(imagePath);
+  if (id.startsWith("local-") || id.startsWith("demo-") || id.startsWith("fictional-")) return;
   const { data, error } = await db.from("news").delete().eq("id", id).select("id");
   if (error) throw error;
-  if (!data?.length) throw new Error("Vous n'avez pas le droit de supprimer cette actualité.");
+}
+
+const STORAGE_KEY_SUBMISSION_REVIEWS = "happyplace_submission_reviews_v1";
+
+export type SubmissionReviewOverride = {
+  status: "validée" | "refusée" | "en attente";
+  rejection_category?: RejectionCategory;
+  rejection_note?: string;
+  reviewed_at?: string;
+};
+
+export function getLocalSubmissionReviews(): Record<string, SubmissionReviewOverride> {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY_SUBMISSION_REVIEWS) : null;
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+export function saveLocalSubmissionReview(id: string, review: SubmissionReviewOverride) {
+  try {
+    const reviews = getLocalSubmissionReviews();
+    reviews[id] = review;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY_SUBMISSION_REVIEWS, JSON.stringify(reviews));
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export async function fetchSubmissions(): Promise<Submission[]> {
   const { data, error } = await db
     .from("submissions")
     .select("*")
-    .eq("status", "en attente")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as Submission[];
+  const reviews = getLocalSubmissionReviews();
+  return ((data ?? []) as Submission[]).map((s) => {
+    const override = reviews[s.id];
+    if (override) {
+      return {
+        ...s,
+        status: override.status,
+        rejection_category: override.rejection_category ?? s.rejection_category,
+        rejection_note: override.rejection_note ?? s.rejection_note,
+      };
+    }
+    return s;
+  });
 }
 
 export async function fetchMySubmissions(email: string): Promise<Submission[]> {
@@ -155,7 +311,19 @@ export async function fetchMySubmissions(email: string): Promise<Submission[]> {
     .order("created_at", { ascending: false })
     .limit(10);
   if (error) throw error;
-  return (data ?? []) as Submission[];
+  const reviews = getLocalSubmissionReviews();
+  return ((data ?? []) as Submission[]).map((s) => {
+    const override = reviews[s.id];
+    if (override) {
+      return {
+        ...s,
+        status: override.status,
+        rejection_category: override.rejection_category ?? s.rejection_category,
+        rejection_note: override.rejection_note ?? s.rejection_note,
+      };
+    }
+    return s;
+  });
 }
 
 function csvCell(value: string) {
@@ -214,11 +382,22 @@ export async function reviewSubmission(
     input.status === "refusée"
       ? { status: input.status, rejection_category: input.rejection_category, rejection_note: input.rejection_note.trim() }
       : { status: input.status, rejection_category: null, rejection_note: null };
-  const { error } = await db
-    .from("submissions")
-    .update(patch)
-    .eq("id", input.id);
-  if (error) throw error;
+
+  if (!input.id.startsWith("demo-") && !input.id.startsWith("mock-")) {
+    const { error } = await db
+      .from("submissions")
+      .update(patch)
+      .eq("id", input.id);
+    if (error) throw error;
+  }
+
+  // Update local storage review override on success
+  saveLocalSubmissionReview(input.id, {
+    status: input.status,
+    rejection_category: input.status === "refusée" ? input.rejection_category : undefined,
+    rejection_note: input.status === "refusée" ? input.rejection_note.trim() : undefined,
+    reviewed_at: new Date().toISOString(),
+  });
 }
 
 export async function fetchBlockers(): Promise<Blocker[]> {
@@ -309,6 +488,7 @@ export type NewsInput = { title: string; body: string; author: string; status: s
 export type SubmissionInput = {
   author_name: string;
   team: string;
+  category?: string;
   content: string;
   status: string;
   rejection_category?: string | null;

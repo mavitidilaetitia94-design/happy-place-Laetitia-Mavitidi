@@ -31,6 +31,7 @@ import {
 } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/_authenticated/manage/submissions")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Gestion des soumissions — Happy Place" },

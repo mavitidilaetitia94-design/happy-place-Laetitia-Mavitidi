@@ -25,6 +25,7 @@ import {
 } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/_authenticated/manage/blockers")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Gestion des points bloquants — Happy Place" },
